@@ -114,3 +114,132 @@ fig <- plot_ly(df_hist, x = ~market_cap_usd_category, y = ~market_cap_usd_count,
 fig%>% layout(title = "Market Capitalization of CryptoCurrency",
               xaxis = list(title = 'Market Cap USD Category'),
               yaxis = list(title = 'Market Cap USD Count'))
+
+
+
+
+
+# ANALYSIS 2
+
+
+######################## QUESTION 6 ########################
+
+
+#install.packages("ggpubr")
+library(dplyr) 
+library(ggplot2)
+library(tidyr)
+library(ggpubr)
+library(stringr)
+crypto <- read.csv("cryptocurrency_market_2017.csv",header = TRUE)
+crypto
+str(crypto)
+
+#6.1
+nrow(crypto[is.na(crypto$market_cap_usd),])
+# 295 cryptocurrencies that have no known market capitalization
+data <- crypto[!(is.na(crypto$market_cap_usd)),]
+data
+
+#6.2
+top_10 <- head(arrange(data, desc(market_cap_usd)),10)
+top_10
+top_10$mcap_perc <- top_10$market_cap_usd/(sum(top_10$market_cap_usd)) * 100 
+
+ggplot(top_10, aes(x=id, y=mcap_perc, fill= mcap_perc))+ 
+  geom_bar(stat = "identity") +  theme(axis.text.x=element_text(angle = 60, vjust = 0.8))+
+  ggtitle("Top 10 Cryptocurrency w.r.t. Market Capitalization") +
+  xlab("Cryptocurrency") + ylab("Market Capitalization in USD") + labs(fill = "% Market Cap")
+
+
+#6.3
+top_10_volatile<-head(arrange(data, percent_change_24h),10)
+top_10_volatile<-top_10_volatile %>% gather(change_type, percentage, c(percent_change_1h,percent_change_24h,percent_change_7d))
+
+ggplot(top_10_volatile,                                      
+       aes(x = id,
+           y = percentage,
+           fill = change_type)) +coord_flip()+
+  geom_bar(stat = "identity",
+           position = "dodge")+
+  ggtitle("Cryptocurrency Volatility ") +
+  xlab("Cryptocurrency") + ylab("% Change") + labs(fill = "% Change Type")
+
+
+# 6.4
+data_24h<-data[!is.na(data$percent_change_24h),]
+top_10_volatile_daily<-head(arrange(data_24h, -percent_change_24h),10)
+bottom_10_volatile_daily<-head(arrange(data_24h, percent_change_24h),10)
+data_7d<-data[!is.na(data$percent_change_7d),]
+data_7d$id <- str_wrap(data_7d$id, width = 15)
+top_10_volatile_weekly<-head(arrange(data_7d, -percent_change_7d),10)
+bottom_10_volatile_weekly<-head(arrange(data_7d, percent_change_7d),10)
+
+# Biggest 10 Daily gainers
+p1 <- ggplot(top_10_volatile_daily, aes(x=id, y=percent_change_24h, fill= percent_change_24h))+ 
+  geom_bar(stat = "identity") +  theme(axis.text.x=element_text(angle = 60, vjust = 0.8))+
+  ggtitle("Biggest 10 Daily Gainers") + xlab("Cryptocurrency")+ ylab("% Change") + labs(fill = "% Change")
+
+p2 <- ggplot(bottom_10_volatile_daily, aes(x=id, y=percent_change_24h, fill= percent_change_24h))+ 
+  geom_bar(stat = "identity") +  theme(axis.text.x=element_text(angle = 60, vjust = 0.8))+
+  ggtitle("Biggest 10 Daily Losers") +xlab("Cryptocurrency")+ylab("% Change") + labs(fill = "% Change")
+
+p3 <- ggplot(top_10_volatile_weekly, aes(x=id, y=percent_change_24h, fill= percent_change_24h))+ 
+  geom_bar(stat = "identity") +  theme(axis.text.x=element_text(angle = 60, vjust = 0.8))+
+  ggtitle("Biggest 10 Weekly Gainers") +
+  xlab("Cryptocurrency") + ylab("% Change") + labs(fill = "% Change")
+
+p4 <- ggplot(bottom_10_volatile_weekly, aes(x=id, y=percent_change_24h, fill= percent_change_24h))+ 
+  geom_bar(stat = "identity") +  theme(axis.text.x=element_text(angle = 60, vjust = 0.8))+
+  ggtitle("Biggest 10 Weekly Losers") + coord_flip()+
+  xlab("Cryptocurrency") + ylab("% Change") + labs(fill = "% Change")
+
+
+ggarrange(p1, p2, p3, p4 + rremove("x.text"), 
+          labels = c("I", "II", "III", "IV"),
+          ncol = 2, nrow = 2)
+
+
+
+#6.5 
+
+# categorizing cryptocurrencies as large-cap, mid-cap & small-cap
+# https://blockgeeks.com/guides/cryptocurrency-market-cap/
+# large-cap => market_cap > $10B
+# mid-cap => market_cap between $1B and $10B
+# small-cap => market_cap < $1B
+data_categorize<-data
+data_categorize$market_type<-ifelse(data_categorize$market_cap_usd > 10000000000,"Large-Cap", ifelse(data_categorize$market_cap_usd > 1000000000,"Mid-Cap","Small-Cap"))
+data_categorize$market_type
+quantile(data$market_cap_usd, c(0.1, 0.9))
+g1<-ggplot(data_categorize[data_categorize$market_type=='Small-Cap',], aes(x=market_type, y=market_cap_usd, fill=market_type)) + 
+  geom_boxplot(alpha=0.75) + coord_flip() +
+  theme(legend.position="none") +                                          
+  geom_point() +
+  scale_fill_brewer(palette="BrBG") +
+  xlab("Market Type") + ylab("Market Capitalization in USD") + theme(legend.position="top")+labs(fill = "Market Type")
+
+g2<-ggplot(data_categorize[data_categorize$market_type=='Mid-Cap',], aes(x=market_type, y=market_cap_usd, fill=market_type)) + 
+  geom_boxplot(alpha=0.75) + coord_flip() +
+  theme(legend.position="none") +                                          
+  geom_point() +
+  scale_fill_brewer(palette="RdBu") +
+  xlab("Market Type") + ylab("Market Capitalization in USD") + theme(legend.position="top")+labs(fill = "Market Type")
+
+g3<-ggplot(data_categorize[data_categorize$market_type=='Large-Cap',], aes(x=market_type, y=market_cap_usd, fill=market_type)) + 
+  geom_boxplot(alpha=0.75) + coord_flip() +
+  theme(legend.position="none") +                                          
+  geom_point() +
+  scale_fill_brewer(palette="Dark2") +
+  xlab("Market Type") + ylab("Market Capitalization in USD") + theme(legend.position="top")+labs(fill = "Market Type")
+
+g4<-ggplot(data_categorize, aes(x=market_type, y=market_cap_usd, fill=market_type)) + 
+  geom_boxplot(alpha=0.75) + coord_flip() +
+  theme(legend.position="none") +                                          
+  geom_point() +
+  scale_fill_brewer(palette="PiYG") +
+  xlab("Market Type") + ylab("Market Capitalization in USD") + theme(legend.position="top")+labs(fill = "Market Type")
+
+ggarrange(g1, g2, g3, g4 + rremove("x.text"), 
+          labels = c("I", "II", "III", "IV"),
+          ncol = 2, nrow = 2)
