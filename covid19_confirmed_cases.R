@@ -118,3 +118,193 @@ data<-data[order(-data$increase),]
 data<-droplevels(head(data,10))
 plot_ly(data, x = ~category, y = ~increase, type = 'bar') %>%
   layout(title = "Top 10 Countries with Covid-19 cases Increase from Jan to March", xaxis = list(title = "Date"), yaxis = list(title = "Confirmed Cases"))
+
+
+
+# analysis 2
+######################## QUESTION 5 ########################
+
+# install.packages('ggplot2')
+# install.packages("tidyr")
+# install.packages("lubridate")
+# install.packages("stringr")
+# install.packages("dplyr")
+
+library(ggplot2)
+library(tidyr)
+library(lubridate)
+library(stringr)
+library(dplyr) 
+
+covid_data <- data.frame(read.csv2(file='time_series_covid_19_confirmed.csv' ,header = TRUE, sep = ','))
+
+#####################-------------- 5.1 ---------------########################
+# Create two graphs that displays the latest number of COVID-19 cases of the top 10 and
+# bottom 10 countries, respectively.
+# Consider how to improve the quality and aesthetics of your visualization
+
+
+########## Latest data given in the file is present for 27th Feb 2021 ######################
+########## Select feb 27 data for all the country and store into a dataframe new_confirmed_cases
+
+new_confirmed_cases <- select(covid_data, Country.Region, X3.23.20)
+
+######### Renaming column names ######################
+colnames(new_confirmed_cases)[1] <- "Country_Region"
+colnames(new_confirmed_cases)[2] <- "Feb_27_21"
+
+
+## Grouping by countring and summing up the number of confirmed cases 
+total_new_cases <- aggregate(new_confirmed_cases$Feb_27_21, by=list(Category=new_confirmed_cases$Country_Region), FUN=sum)
+
+## Dropping null values
+total_new_cases<-total_new_cases[!is.na(total_new_cases$x),]
+
+## Sorting dataframe by the number of confirmed cases in descending order
+
+## Top 10 
+covid_top10 <- droplevels(head(total_new_cases[order(total_new_cases$x, decreasing = TRUE),],10))
+
+## Bottom 10
+covid_bottom10 <- droplevels(tail(total_new_cases[order(total_new_cases$x,decreasing = TRUE),],10))
+
+## Scatter plot to show Top 10 country with number of confirmed cases 
+ggplot(covid_top10, aes(x = Category, y = x)) + 
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 75, hjust = 1), 
+        plot.title = element_text(hjust = 0.5)) + 
+  labs(x = "Country", y = "No. of Cases", 
+       title = "Latest Number of COVID-19 Cases (TOP - 10)")
+
+## Scatter plot to show Bottom 10 country with number of confirmed cases 
+ggplot(covid_bottom10, aes(x = Category, y = x)) + 
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 75, hjust = 1), 
+        plot.title = element_text(hjust = 0.5)) + 
+  labs(x = "Country", y = "No. of Cases", 
+       title = "Latest Number of COVID-19 Cases (BOTTOM - 10)")
+
+#####################-------------- 5.2 ---------------########################
+# Visualize the confirmed cases worldwide from January to March
+covid_data
+## Pivoting data, columns into row and create date and number of confirmed cases 
+df <- covid_data[,-c(1:4)]
+
+#rows to columns
+df <- gather(df, "date","cases",1:62)
+df <- df[!is.na(df$cases),]
+## Date conversion
+df$date <- mdy(str_sub(df$date, 2))
+df
+## Aggregating data by date
+df<-aggregate(df$cases, by=list(category=df$date), FUN=sum)
+## Bar plot to show Confirmed Cases Worldwide from: January to March
+ggplot(data=df, aes(x=category, y=x)) + geom_bar(stat="identity", color="black", width=0.5,fill="steelblue")+theme_minimal()+
+  labs(title = "Confirmed Cases Worldwide from: January to March",x= 'Date', y = 'Confirmed Cases') +
+  scale_y_continuous(labels = scales::comma)
+
+#####################-------------- 5.3 ---------------########################
+# Visualize the confirmed cases of COVID-19 in China and the rest of the world from January to March. 
+# Can you relate the main changes observed from the plot with the landmark events 
+# such as WHO declared a pandemic?
+
+
+### Dicing dataframe to select data only from January to March 2020.
+df <- covid_data 
+df <- gather(df, "date","cases",5:66)
+df <- df[!is.na(df$cases),]
+## Date conversion
+df$date <- mdy(str_sub(df$date, 2))
+df
+
+## Aggregating data by Date and Country/Region
+df<-aggregate(df$cases, by=list(category=df$Country.Region,df$date), FUN=sum)
+
+## Line chart to show Confirmed Cases of COVID-19 in China vs Rest of the World
+df %>% 
+  mutate(grouped_data = if_else(category == 'China', 'China', 'Not China')) %>%
+  group_by(grouped_data, Group.2) %>% 
+  summarise(confirmed = sum(x)) %>% 
+  ggplot(aes(x = Group.2, y = confirmed)) +
+  geom_line(aes(color = grouped_data)) +
+  scale_color_manual(values = c('navy', 'red')) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Confirmed Cases of COVID-19 in China vs Rest of the World",x= 'Date', y = 'Confirmed Cases')+
+  theme(legend.title=element_blank())
+
+#####################-------------- 5.4 ---------------########################
+# Add a smooth trend line using linear regression to measure how fast the number of cases is growing in China 
+# after 15 February 2020. 
+# How does the rest of the world compare to linear growth? 
+  
+
+### Dicing dataframe to select data only after 15 February 2020
+covid_data
+df_china <- covid_data %>% 
+  filter(Country.Region=="China") %>% 
+  gather("date","cases",29:66) %>% 
+  select("date","cases")
+df_other <- covid_data %>% 
+  filter(Country.Region!="China") %>% 
+  gather("date","cases",29:66) %>% 
+  select("date","cases")
+
+df_china$date <- str_sub(df_china$date, 2) %>% mdy()
+df_china<- setNames(aggregate(df_china$cases, by=list(category=df_china$date), FUN=sum), c("date","cases"))
+## Dropping null values.
+df_china<-df_china[!is.na(df_china$cases),]
+
+df_other$date <- str_sub(df_other$date, 2) %>% mdy()
+df_other<- setNames(aggregate(df_other$cases, by=list(category=df_other$date), FUN=sum), c("date","cases"))
+df_other<-df_other[!is.na(df_other$cases),]
+
+
+## LR model
+model_predict <- lm(log(cases)~date, data = df_china)
+summary(model_predict)
+
+data_df <- data.frame(category = seq(ymd('2020-02-15'),ymd('2020-03-23'),by='day'))
+data_df
+data_df$preds <- exp(predict(model_predict))
+
+## Visual to show Cases in China After 15th Feb 2020 vs LR line
+data_df %>% ggplot(aes(x=category, y=preds)) +
+  geom_line() +
+  labs(title = "Trendline for China vs Rest of the World", x = 'Date', y='Number of Cases') +
+  geom_line(aes(x=date,y=cases), data=df_china, col="Blue") +
+  geom_line(aes(x=date,y=cases), data=df_other, col="Red") +
+  scale_y_continuous(labels = scales::comma) +
+  theme(legend.title=element_blank())
+
+
+
+#####################-------------- 5.5 ---------------########################
+# Raise at least one question from your own regarding the COVID-19 pandemic and 
+# find answers using the given dataset. 
+#====================
+# Majorly Affected COUNTRIES
+
+# This gives us a quick way to compare the growth of covid between a few different countries.
+#====================
+
+## Filtering out the data from countries only for, "US","China","Italy","Spain","France"
+imp_country <- covid_data %>% 
+  filter(Country.Region %in% c("US","China","Italy","Spain","France")) %>% 
+  gather("date","cases",5:66) %>% 
+  select("Country.Region","date","cases")
+
+imp_country$date <- str_sub(imp_country$date, 2) %>% mdy()
+
+## Visual to show over all growth of Covid between countries
+imp_country %>% 
+  group_by(Country.Region, date) %>% 
+  summarise(confirmed = sum(cases)) %>% 
+  ggplot(aes(x = date, y = confirmed)) +
+  geom_line(aes(color = Country.Region)) +
+  scale_color_manual(values = c('navy', 'orange','green', 'purple', 'red'))+
+  labs(title = "Growth of Covid between Countries", x = 'Date', y='Number of Cases') +
+  scale_y_continuous(labels = scales::comma) +
+  theme(legend.title=element_blank())
+
+
+
